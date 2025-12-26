@@ -9,6 +9,7 @@ from ollama.client import chat as ollama_chat, chat_stream, health_check, Ollama
 from models import registry
 from personas.presets import PRESETS, CLASS_FLAVOR, SPEC_BEHAVIOR, CLASS_AVATAR
 from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError, PersonaValidationError
+from conversations import Conversation, ConversationManager
 
 load_dotenv()
 
@@ -17,6 +18,9 @@ DEFAULT_VERSION = os.getenv("APP_VERSION", "ChatGPT 26.2: Redwood")
 
 st.set_page_config(page_title="Persona Creator + Multi-Model AI", layout="wide")
 st.title("Persona Creator Demo (WoW-style) + Multi-Model AI 🤖")
+
+# Initialize conversation manager
+conversation_manager = ConversationManager()
 
 # Check provider connection on startup
 @st.cache_data(ttl=30)
@@ -42,6 +46,10 @@ def init_state():
         st.session_state.msgs = []
     if "selected_preset" not in st.session_state:
         st.session_state.selected_preset = PRESETS[0].key
+    if "current_conversation" not in st.session_state:
+        st.session_state.current_conversation = None
+    if "conversation_title" not in st.session_state:
+        st.session_state.conversation_title = ""
 
 init_state()
 
@@ -116,7 +124,7 @@ with left:
         options=available_providers,
         index=available_providers.index("Ollama") if "Ollama" in available_providers else 0,
         help="Choose your AI model provider"
-    )
+    ) or "Ollama"  # Default fallback
 
     selected_provider = registry.get_provider(selected_provider_name)
     available_models = selected_provider.available_models if selected_provider else []
@@ -202,7 +210,22 @@ with left:
         st.code(system_prompt)
 
     if st.button("New Chat"):
+        # Save current conversation if it has messages
+        if st.session_state.current_conversation and st.session_state.msgs:
+            conversation_manager.save_conversation(st.session_state.current_conversation)
+            st.success("💾 Previous conversation saved!")
+
+        # Create new conversation
+        persona_display_name = persona_name or f"{cls} {spec}"
+        st.session_state.current_conversation = Conversation.new(
+            persona_name=persona_display_name,
+            persona_class=cls,
+            persona_spec=spec,
+            provider_name=selected_provider_name,
+            model_name=selected_model
+        )
         st.session_state.msgs = []
+        st.session_state.conversation_title = ""
         st.rerun()
 
     # Save/Load Personas Section
@@ -264,8 +287,166 @@ with left:
         else:
             st.info("No saved personas found. Save one first!")
 
+    # Conversation Management Section
+    st.markdown("### 💬 Conversation Management")
+
+    # New Conversation / Save Current
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    with col1:
+        if st.button("🆕 New Conversation"):
+            # Save current conversation if it has messages
+            if st.session_state.current_conversation and st.session_state.msgs:
+                conversation_manager.save_conversation(st.session_state.current_conversation)
+                st.success("💾 Previous conversation saved!")
+
+            # Create new conversation
+            persona_display_name = persona_name or f"{cls} {spec}"
+            st.session_state.current_conversation = Conversation.new(
+                persona_name=persona_display_name,
+                persona_class=cls,
+                persona_spec=spec,
+                provider_name=selected_provider_name,
+                model_name=selected_model
+            )
+            st.session_state.msgs = []
+            st.session_state.conversation_title = ""
+            st.rerun()
+
+    with col2:
+        if st.session_state.current_conversation and st.session_state.msgs:
+            # Auto-generate title from first user message
+            if not st.session_state.conversation_title and st.session_state.msgs:
+                first_user_msg = next((msg["content"] for msg in st.session_state.msgs if msg["role"] == "user"), "")
+                if first_user_msg:
+                    # Truncate to 50 chars and clean
+                    title = first_user_msg[:50].replace("\n", " ").strip()
+                    if len(first_user_msg) > 50:
+                        title += "..."
+                    st.session_state.conversation_title = title
+                    st.session_state.current_conversation.title = title
+
+            conversation_title_input = st.text_input(
+                "Conversation Title",
+                value=st.session_state.conversation_title,
+                placeholder="Enter a title for this conversation"
+            )
+
+            if st.button("💾 Save Conversation") and conversation_title_input.strip():
+                st.session_state.current_conversation.title = conversation_title_input.strip()
+                filepath = conversation_manager.save_conversation(st.session_state.current_conversation)
+                st.success(f"✅ Conversation saved!")
+                st.session_state.conversation_title = conversation_title_input.strip()
+
+    with col3:
+        # Load conversation dropdown
+        saved_conversations = conversation_manager.list_conversations()
+        if saved_conversations:
+            conversation_options = ["Choose a conversation..."] + [f"{c.title} ({c.updated_at[:10]})" for c in saved_conversations]
+            selected_conversation_display = st.selectbox(
+                "Load Conversation",
+                options=conversation_options
+            )
+
+            if selected_conversation_display != "Choose a conversation...":
+                # Find the actual conversation
+                selected_idx = conversation_options.index(selected_conversation_display) - 1
+                selected_conv = saved_conversations[selected_idx]
+
+                if st.button("📂 Load Selected"):
+                    # Save current conversation if it has messages
+                    if st.session_state.current_conversation and st.session_state.msgs:
+                        conversation_manager.save_conversation(st.session_state.current_conversation)
+                        st.info("💾 Previous conversation saved!")
+
+                    # Load selected conversation
+                    st.session_state.current_conversation = selected_conv
+                    st.session_state.msgs = selected_conv.get_messages_for_chat()
+                    st.session_state.conversation_title = selected_conv.title
+                    st.success(f"✅ Loaded conversation: {selected_conv.title}")
+                    st.rerun()
+        else:
+            st.info("No saved conversations yet!")
+
+    # Conversation History
+    if saved_conversations:
+        with st.expander("📚 Conversation History", expanded=False):
+            for conv in saved_conversations[:10]:  # Show last 10
+                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+
+                with col1:
+                    st.write(f"**{conv.title}**")
+                    st.caption(f"{conv.persona_name} • {conv.provider_name}/{conv.model_name}")
+
+                with col2:
+                    st.caption(f"{conv.get_summary()}")
+
+                with col3:
+                    if st.button("📂 Load", key=f"load_{conv.id}"):
+                        # Save current conversation if it has messages
+                        if st.session_state.current_conversation and st.session_state.msgs:
+                            conversation_manager.save_conversation(st.session_state.current_conversation)
+
+                        st.session_state.current_conversation = conv
+                        st.session_state.msgs = conv.get_messages_for_chat()
+                        st.session_state.conversation_title = conv.title
+                        st.success(f"✅ Loaded: {conv.title}")
+                        st.rerun()
+
+                with col4:
+                    if st.button("🗑️ Delete", key=f"delete_{conv.id}"):
+                        if conversation_manager.delete_conversation(conv.id):
+                            st.success("🗑️ Conversation deleted!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to delete conversation!")
+
+    # Export Current Conversation
+    if st.session_state.current_conversation and st.session_state.msgs:
+        st.markdown("### 📤 Export Conversation")
+        export_col1, export_col2, export_col3 = st.columns(3)
+
+        with export_col1:
+            if st.button("📄 Export as JSON"):
+                export_data = conversation_manager.export_conversation(st.session_state.current_conversation.id, "json")
+                if export_data:
+                    st.download_button(
+                        label="📥 Download JSON",
+                        data=export_data,
+                        file_name=f"{st.session_state.current_conversation.title.replace(' ', '_')}.json",
+                        mime="application/json"
+                    )
+
+        with export_col2:
+            if st.button("📝 Export as Text"):
+                export_data = conversation_manager.export_conversation(st.session_state.current_conversation.id, "txt")
+                if export_data:
+                    st.download_button(
+                        label="📥 Download TXT",
+                        data=export_data,
+                        file_name=f"{st.session_state.current_conversation.title.replace(' ', '_')}.txt",
+                        mime="text/plain"
+                    )
+
+        with export_col3:
+            if st.button("📖 Export as Markdown"):
+                export_data = conversation_manager.export_conversation(st.session_state.current_conversation.id, "markdown")
+                if export_data:
+                    st.download_button(
+                        label="📥 Download MD",
+                        data=export_data,
+                        file_name=f"{st.session_state.current_conversation.title.replace(' ', '_')}.md",
+                        mime="text/markdown"
+                    )
+
 with right:
     st.subheader("Chat")
+
+    # Show current conversation info
+    if st.session_state.current_conversation:
+        st.caption(f"Current: {st.session_state.current_conversation.title}")
+    else:
+        st.caption("No active conversation - start chatting to create one!")
 
     for m in st.session_state.msgs:
         if m["role"] == "assistant":
@@ -275,7 +456,20 @@ with right:
 
     user_text = st.chat_input("Ask something (try an accounting question)…")
     if user_text:
+        # Create conversation if none exists
+        if not st.session_state.current_conversation:
+            persona_display_name = persona_name or f"{cls} {spec}"
+            st.session_state.current_conversation = Conversation.new(
+                persona_name=persona_display_name,
+                persona_class=cls,
+                persona_spec=spec,
+                provider_name=selected_provider_name,
+                model_name=selected_model
+            )
+
+        # Add user message
         st.session_state.msgs.append({"role": "user", "content": user_text})
+        st.session_state.current_conversation.add_message("user", user_text, "👤")
         st.chat_message("user", avatar="👤").write(user_text)
 
         try:
@@ -310,4 +504,6 @@ with right:
             reply = f"Error talking to {selected_provider_name}: {e}"
             st.chat_message("assistant", avatar=avatar).write(reply)
 
+        # Add assistant message
         st.session_state.msgs.append({"role": "assistant", "content": reply})
+        st.session_state.current_conversation.add_message("assistant", reply, avatar)

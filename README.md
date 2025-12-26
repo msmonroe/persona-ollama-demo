@@ -20,9 +20,16 @@ Design goal: **increase user satisfaction and usability while reducing risk** vi
 
 - **WoW-style Class/Spec** persona builder
 - **Persona Badge** always visible (Class/Spec/Mode)
-- **Streaming responses** (Ollama `/api/chat` streaming)
+- **Streaming responses** (real-time chat generation)
 - **Avatar customization** (visual-only)
 - **Save/Load** custom personas
+- **Conversation Management**:
+  - Save and load conversations
+  - Conversation history with search and delete
+  - Auto-generated conversation titles
+  - Export conversations (JSON, Text, Markdown)
+  - Persistent chat history across sessions
+- **Multi-Model Support**: Ollama, OpenAI, Anthropic, Google, xAI, DeepSeek
 
 ## Prereqs
 
@@ -55,7 +62,30 @@ streamlit run app.py
 
 ## Test
 pytest -q
+## Conversation Management
 
+The app includes comprehensive conversation management features:
+
+### Saving Conversations
+- Conversations are automatically saved when you start a new chat or close the app
+- You can manually save conversations with custom titles
+- Conversations include metadata (persona, model, timestamps)
+
+### Loading Conversations
+- Browse your conversation history in the expandable "Conversation History" section
+- Load any previous conversation to continue chatting
+- Conversations are sorted by most recent activity
+
+### Exporting Conversations
+- Export conversations in multiple formats:
+  - **JSON**: Full conversation data for backup/import
+  - **Text**: Human-readable format with timestamps
+  - **Markdown**: Formatted for documentation or sharing
+
+### Managing Conversations
+- Delete unwanted conversations from your history
+- Conversations are stored locally in the `saved_conversations/` directory
+- Each conversation has a unique ID and maintains full message history
 ## Notes
 
 ## Personas are presentation-layer instructions, not "entities".
