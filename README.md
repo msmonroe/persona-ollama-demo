@@ -1,6 +1,6 @@
-# Persona Creator Demo (WoW-style) + Ollama 🦙
+# Persona Creator Demo (WoW-style) + Multi-Model AI 🤖
 
-A local demo that lets you pick an AI **Class** + **Spec** (WoW-style), customize visual avatars, and generates a **system prompt** that steers a local Ollama model. Includes **real-time streaming**, plus **save/load** for custom personas.
+A local demo that lets you pick an AI **Class** + **Spec** (WoW-style), customize visual avatars, and generates a **system prompt** that steers multiple AI models. Includes **real-time streaming**, plus **save/load** for custom personas. Supports **Ollama**, **OpenAI**, **Anthropic (Claude)**, **Google (Gemini)**, **xAI (Grok)**, and **DeepSeek**.
 
 ## Why this exists (product rationale)
 
@@ -26,9 +26,20 @@ Design goal: **increase user satisfaction and usability while reducing risk** vi
 
 ## Prereqs
 
+### For Ollama (Local Models)
 - Ollama installed and running
 - A model pulled, e.g.:
   - `ollama pull llama3.2`
+
+### For Cloud Models (Optional)
+Create a `.env` file with your API keys:
+```bash
+OPENAI_API_KEY=your_openai_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
+GOOGLE_API_KEY=your_google_key_here
+XAI_API_KEY=your_xai_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
+```
 
 ## Setup
 

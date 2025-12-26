@@ -6,31 +6,34 @@ from dotenv import load_dotenv
 import streamlit as st
 
 from ollama.client import chat as ollama_chat, chat_stream, health_check, OllamaConnectionError
+from models import registry
 from personas.presets import PRESETS, CLASS_FLAVOR, SPEC_BEHAVIOR, CLASS_AVATAR
-from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError
+from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError, PersonaValidationError
 
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "llama3.2")
 DEFAULT_VERSION = os.getenv("APP_VERSION", "ChatGPT 26.2: Redwood")
 
-st.set_page_config(page_title="Persona Creator + Ollama", layout="wide")
-st.title("Persona Creator Demo (WoW-style) + Ollama 🦙")
+st.set_page_config(page_title="Persona Creator + Multi-Model AI", layout="wide")
+st.title("Persona Creator Demo (WoW-style) + Multi-Model AI 🤖")
 
-# Check Ollama connection on startup
+# Check provider connection on startup
 @st.cache_data(ttl=30)
-def check_ollama_status():
-    """Check if Ollama is running (cached for 30 seconds)."""
+def check_provider_status(provider_name: str):
+    """Check if the selected provider is accessible (cached for 30 seconds)."""
     try:
-        health_check()
-        return True, None
-    except OllamaConnectionError as e:
+        provider = registry.get_provider(provider_name)
+        if provider and provider.health_check():
+            return True, None
+        else:
+            return False, f"Cannot connect to {provider_name}"
+    except Exception as e:
         return False, str(e)
 
-ollama_healthy, ollama_error = check_ollama_status()
-if not ollama_healthy:
-    st.error(f"⚠️ Ollama not available: {ollama_error}")
-    st.info("Make sure Ollama is running: `ollama serve`")
+# Provider health check will be done after provider selection
+provider_healthy = True
+provider_error = None
 
 left, right = st.columns([1, 2])
 
@@ -105,8 +108,65 @@ with left:
 
     version_codename = st.text_input("Version + Codename", default_version)
     persona_name = st.text_input("Persona Name (optional)", default_name, placeholder="e.g., Archmage Lyra")
-    model = st.text_input("Ollama model", DEFAULT_MODEL)
+
+    # Model Provider Selection
+    available_providers = registry.get_available_providers()
+    selected_provider_name = st.selectbox(
+        "AI Model Provider",
+        options=available_providers,
+        index=available_providers.index("Ollama") if "Ollama" in available_providers else 0,
+        help="Choose your AI model provider"
+    )
+
+    selected_provider = registry.get_provider(selected_provider_name)
+    available_models = selected_provider.available_models if selected_provider else []
+
+    selected_model = st.selectbox(
+        f"{selected_provider_name} Model",
+        options=available_models,
+        index=0,
+        help=f"Available models from {selected_provider_name}"
+    )
+
+    # API Key configuration for non-Ollama providers
+    if selected_provider_name != "Ollama":
+        api_key_env_var = f"{selected_provider_name.upper()}_API_KEY"
+        current_key = os.getenv(api_key_env_var, "")
+        api_key = st.text_input(
+            f"{selected_provider_name} API Key",
+            value=current_key,
+            type="password",
+            help=f"Enter your {selected_provider_name} API key"
+        )
+        if api_key and api_key != current_key:
+            os.environ[api_key_env_var] = api_key
+            # Reinitialize provider with new key
+            if selected_provider_name == "OpenAI":
+                from models.openai_provider import OpenAIProvider
+                registry.register(OpenAIProvider(api_key))
+            elif selected_provider_name == "Anthropic":
+                from models.anthropic_provider import AnthropicProvider
+                registry.register(AnthropicProvider(api_key))
+            elif selected_provider_name == "Google":
+                from models.google_provider import GoogleProvider
+                registry.register(GoogleProvider(api_key))
+            elif selected_provider_name == "xAI":
+                from models.xai_provider import xAIProvider
+                registry.register(xAIProvider(api_key))
+            elif selected_provider_name == "DeepSeek":
+                from models.deepseek_provider import DeepSeekProvider
+                registry.register(DeepSeekProvider(api_key))
+
     streaming_enabled = st.checkbox("Enable streaming responses", value=False, help="Show responses as they are generated in real-time")
+
+    # Check provider health
+    provider_healthy, provider_error = check_provider_status(selected_provider_name)
+    if not provider_healthy:
+        st.error(f"⚠️ {selected_provider_name} not available: {provider_error}")
+        if selected_provider_name == "Ollama":
+            st.info("Make sure Ollama is running: `ollama serve`")
+        else:
+            st.info(f"Make sure your {selected_provider_name} API key is configured")
 
     cls = st.selectbox("Class", list(CLASS_FLAVOR.keys()), index=list(CLASS_FLAVOR.keys()).index(default_cls))
     default_avatar = CLASS_AVATAR.get(cls, "🧙‍♂️")
@@ -224,22 +284,30 @@ with right:
                 with st.chat_message("assistant", avatar=avatar):
                     message_placeholder = st.empty()
                     accumulated_content = ""
-                    
+
                     try:
-                        for chunk in chat_stream(model=model, system_prompt=system_prompt, messages=st.session_state.msgs):
+                        for chunk in selected_provider.chat_stream(
+                            model=selected_model,
+                            system_prompt=system_prompt,
+                            messages=st.session_state.msgs
+                        ):
                             accumulated_content += chunk
                             message_placeholder.write(accumulated_content)
                     except Exception as e:
                         accumulated_content = f"Error during streaming: {e}"
                         message_placeholder.write(accumulated_content)
-                    
+
                     reply = accumulated_content
             else:
                 # Non-streaming response
-                reply = ollama_chat(model=model, system_prompt=system_prompt, messages=st.session_state.msgs)
+                reply = selected_provider.chat(
+                    model=selected_model,
+                    system_prompt=system_prompt,
+                    messages=st.session_state.msgs
+                )
                 st.chat_message("assistant", avatar=avatar).write(reply)
         except Exception as e:
-            reply = f"Error talking to Ollama: {e}"
+            reply = f"Error talking to {selected_provider_name}: {e}"
             st.chat_message("assistant", avatar=avatar).write(reply)
 
         st.session_state.msgs.append({"role": "assistant", "content": reply})
