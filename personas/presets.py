@@ -13,6 +13,10 @@ class PersonaPreset:
     humor: int
     assertiveness: int
     creativity: int
+    formality: int
+    empathy: int
+    technical_level: int
+    patience: int
     name: str = ""  # Optional default name for preset
     avatar: str = ""  # Optional avatar emoji or image path
 
@@ -64,6 +68,10 @@ PRESETS: List[PersonaPreset] = [
         humor=5,
         assertiveness=6,
         creativity=6,
+        formality=4,  # Somewhat informal for teaching
+        empathy=7,    # High empathy for education
+        technical_level=6,  # Moderate technical level for accounting
+        patience=8,   # High patience for teaching
         name="Archmage Numerius",
         avatar="🧙‍♂️",
     ),
@@ -77,6 +85,10 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=6,
         creativity=2,
+        formality=7,  # High formality for work
+        empathy=4,    # Moderate empathy
+        technical_level=5,  # Moderate technical level
+        patience=6,   # Moderate patience
         avatar="⚔️",
     ),
     PersonaPreset(
@@ -89,6 +101,10 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=7,
         creativity=1,
+        formality=3,  # Low formality for speed
+        empathy=2,    # Low empathy for speed
+        technical_level=7,  # High technical level for troubleshooting
+        patience=3,   # Low patience for speed
         avatar="🗡️",
     ),
     PersonaPreset(
@@ -101,6 +117,10 @@ PRESETS: List[PersonaPreset] = [
         humor=6,
         assertiveness=6,
         creativity=7,
+        formality=4,  # Moderate formality
+        empathy=6,    # High empathy for marketing
+        technical_level=3,  # Low technical level
+        patience=7,   # High patience for creative work
         avatar="🎭",
     ),
     PersonaPreset(
@@ -113,6 +133,10 @@ PRESETS: List[PersonaPreset] = [
         humor=2,
         assertiveness=8,
         creativity=3,
+        formality=6,  # Moderate formality
+        empathy=3,    # Low empathy for criticism
+        technical_level=9,  # Very high technical level for code review
+        patience=7,   # High patience for thorough review
         avatar="🔮",
     ),
     PersonaPreset(
@@ -125,6 +149,10 @@ PRESETS: List[PersonaPreset] = [
         humor=4,
         assertiveness=5,
         creativity=6,
+        formality=5,  # Neutral formality
+        empathy=8,    # High empathy for mentoring
+        technical_level=5,  # Moderate technical level
+        patience=9,   # Very high patience for mentoring
         avatar="🌿",
     ),
     PersonaPreset(
@@ -137,6 +165,10 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=6,
         creativity=2,
+        formality=5,  # Neutral formality
+        empathy=4,    # Moderate empathy
+        technical_level=8,  # High technical level for debugging
+        patience=8,   # High patience for systematic debugging
         avatar="🏹",
     ),
     PersonaPreset(
@@ -149,6 +181,10 @@ PRESETS: List[PersonaPreset] = [
         humor=2,
         assertiveness=6,
         creativity=5,
+        formality=6,  # Moderate formality
+        empathy=5,    # Neutral empathy
+        technical_level=9,  # Very high technical level for architecture
+        patience=7,   # High patience for complex design
         avatar="🌩️",
     ),
 ]

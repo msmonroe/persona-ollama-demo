@@ -15,7 +15,10 @@ class TestPersonaConfig:
             humor=4,
             assertiveness=6,
             creativity=5,
-        )
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         assert cfg.cls == "Mage"
         assert cfg.verbosity == 6
 
@@ -29,8 +32,11 @@ class TestPersonaConfig:
             humor=4,
             assertiveness=6,
             creativity=5,
-            avatar="🧙‍♂️",
-        )
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
+            avatar="🧙‍♂️")
         assert cfg.avatar == "🧙‍♂️"
 
     def test_verbosity_below_minimum_raises(self):
@@ -44,8 +50,11 @@ class TestPersonaConfig:
                 humor=4,
                 assertiveness=6,
                 creativity=5,
+                formality=5,
+                empathy=5,
+                technical_level=5,
+                patience=5,
             )
-
     def test_verbosity_above_maximum_raises(self):
         with pytest.raises(PersonaValidationError, match="verbosity must be between 1 and 10"):
             PersonaConfig(
@@ -57,8 +66,11 @@ class TestPersonaConfig:
                 humor=4,
                 assertiveness=6,
                 creativity=5,
+                formality=5,
+                empathy=5,
+                technical_level=5,
+                patience=5,
             )
-
     def test_humor_at_zero_is_valid(self):
         cfg = PersonaConfig(
             version_codename="Test",
@@ -69,7 +81,10 @@ class TestPersonaConfig:
             humor=0,  # Valid: min is 0
             assertiveness=5,
             creativity=5,
-        )
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         assert cfg.humor == 0
 
     def test_creativity_above_maximum_raises(self):
@@ -83,8 +98,10 @@ class TestPersonaConfig:
                 humor=4,
                 assertiveness=6,
                 creativity=15,  # Invalid
-            )
-
+                formality=5,
+                empathy=5,
+                technical_level=5,
+                patience=5)
     def test_empty_version_codename_raises(self):
         with pytest.raises(PersonaValidationError, match="version_codename cannot be empty"):
             PersonaConfig(
@@ -96,8 +113,10 @@ class TestPersonaConfig:
                 humor=4,
                 assertiveness=6,
                 creativity=5,
-            )
-
+                formality=5,
+                empathy=5,
+                technical_level=5,
+                patience=5)
     def test_whitespace_only_version_codename_raises(self):
         with pytest.raises(PersonaValidationError, match="version_codename cannot be empty"):
             PersonaConfig(
@@ -109,9 +128,11 @@ class TestPersonaConfig:
                 humor=4,
                 assertiveness=6,
                 creativity=5,
-            )
 
-
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
 class TestBuildSystemPrompt:
     """Tests for build_system_prompt function."""
 
@@ -125,7 +146,11 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Persona Badge:" in s
         assert "Class=Mage" in s
@@ -141,6 +166,10 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
             name="Archmage Lyra",
         )
         s = build_system_prompt(cfg)
@@ -157,6 +186,10 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
             name="",
         )
         s = build_system_prompt(cfg)
@@ -172,7 +205,11 @@ class TestBuildSystemPrompt:
             humor=2,
             assertiveness=7,
             creativity=3,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Verbosity: 8/10" in s
         assert "Humor: 2/10" in s
@@ -189,7 +226,11 @@ class TestBuildSystemPrompt:
             humor=2,
             assertiveness=6,
             creativity=3,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Work Mode: prioritize clarity and correctness" in s
 
@@ -203,7 +244,11 @@ class TestBuildSystemPrompt:
             humor=6,
             assertiveness=6,
             creativity=7,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Play Mode: allow stronger flavor" in s
 
@@ -217,10 +262,13 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         with pytest.raises(ValueError, match="Unknown class"):
             build_system_prompt(cfg)
-
     def test_unknown_spec_raises(self):
         cfg = PersonaConfig(
             version_codename="X",
@@ -231,10 +279,13 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         with pytest.raises(ValueError, match="Unknown spec"):
             build_system_prompt(cfg)
-
     def test_invalid_mode_raises(self):
         cfg = PersonaConfig(
             version_codename="X",
@@ -245,10 +296,13 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
         )
         with pytest.raises(ValueError, match="mode must be"):
             build_system_prompt(cfg)
-
     def test_class_flavor_included(self):
         cfg = PersonaConfig(
             version_codename="Test",
@@ -259,7 +313,11 @@ class TestBuildSystemPrompt:
             humor=2,
             assertiveness=8,
             creativity=3,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Analytical and thorough" in s  # Warlock flavor
 
@@ -273,7 +331,11 @@ class TestBuildSystemPrompt:
             humor=1,
             assertiveness=6,
             creativity=2,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Systematic troubleshooter" in s  # Debugger behavior
 
@@ -287,7 +349,11 @@ class TestBuildSystemPrompt:
             humor=4,
             assertiveness=6,
             creativity=5,
-        )
+
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5)
         s = build_system_prompt(cfg)
         assert "Do not claim sentience" in s
         assert "financial/legal/medical advice" in s
@@ -306,6 +372,10 @@ class TestPersonaSaveLoad:
             humor=4,
             assertiveness=6,
             creativity=5,
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
             name="Test Persona",
             avatar="🧙‍♂️",
         )
@@ -324,6 +394,10 @@ class TestPersonaSaveLoad:
             "humor": 4,
             "assertiveness": 6,
             "creativity": 5,
+            "formality": 5,
+            "empathy": 5,
+            "technical_level": 5,
+            "patience": 5,
             "name": "Test Persona",
             "avatar": "🧙‍♂️",
         }
@@ -342,15 +416,16 @@ class TestPersonaSaveLoad:
             humor=4,
             assertiveness=6,
             creativity=5,
+            formality=5,
+            empathy=5,
+            technical_level=5,
+            patience=5,
             name="Test Persona",
             avatar="🧙‍♂️",
         )
-        
         filepath = tmp_path / "test_persona.json"
         cfg.save_to_file(str(filepath))
-        
         loaded_cfg = PersonaConfig.load_from_file(str(filepath))
-        
         assert loaded_cfg.version_codename == cfg.version_codename
         assert loaded_cfg.cls == cfg.cls
         assert loaded_cfg.avatar == cfg.avatar
@@ -359,10 +434,8 @@ class TestPersonaSaveLoad:
     def test_load_from_nonexistent_file_raises_error(self):
         with pytest.raises(PersonaValidationError, match="Persona file not found"):
             PersonaConfig.load_from_file("nonexistent_file.json")
-
     def test_load_from_invalid_json_raises_error(self, tmp_path):
         filepath = tmp_path / "invalid.json"
         filepath.write_text("invalid json content")
-        
         with pytest.raises(PersonaValidationError, match="Invalid persona file format"):
             PersonaConfig.load_from_file(str(filepath))

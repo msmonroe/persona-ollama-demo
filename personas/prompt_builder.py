@@ -21,6 +21,10 @@ class PersonaConfig:
     humor: int
     assertiveness: int
     creativity: int
+    formality: int  # 0-10: How formal/informal the language should be
+    empathy: int    # 0-10: How empathetic/supportive the responses should be
+    technical_level: int  # 0-10: How technical the explanations should be
+    patience: int   # 1-10: How patient/detailed the responses should be
     name: str = ""  # Optional persona name
     avatar: str = ""  # Optional avatar emoji or image path
 
@@ -30,6 +34,10 @@ class PersonaConfig:
         self._validate_slider("humor", self.humor, 0, 10)
         self._validate_slider("assertiveness", self.assertiveness, 1, 10)
         self._validate_slider("creativity", self.creativity, 0, 10)
+        self._validate_slider("formality", self.formality, 0, 10)
+        self._validate_slider("empathy", self.empathy, 0, 10)
+        self._validate_slider("technical_level", self.technical_level, 0, 10)
+        self._validate_slider("patience", self.patience, 1, 10)
 
         if not self.version_codename or not self.version_codename.strip():
             raise PersonaValidationError("version_codename cannot be empty")
@@ -105,6 +113,10 @@ Style sliders:
 - Humor: {cfg.humor}/10
 - Assertiveness: {cfg.assertiveness}/10
 - Creativity: {cfg.creativity}/10
+- Formality: {cfg.formality}/10
+- Empathy: {cfg.empathy}/10
+- Technical Level: {cfg.technical_level}/10
+- Patience: {cfg.patience}/10
 
 Class flavor:
 {CLASS_FLAVOR[cfg.cls]}

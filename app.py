@@ -128,6 +128,10 @@ with left:
         default_humor = loaded_cfg.humor
         default_assertiveness = loaded_cfg.assertiveness
         default_creativity = loaded_cfg.creativity
+        default_formality = loaded_cfg.formality
+        default_empathy = loaded_cfg.empathy
+        default_technical_level = loaded_cfg.technical_level
+        default_patience = loaded_cfg.patience
         default_avatar = loaded_cfg.avatar
     else:
         # Use preset defaults
@@ -142,6 +146,10 @@ with left:
         default_humor = preset.humor
         default_assertiveness = preset.assertiveness
         default_creativity = preset.creativity
+        default_formality = preset.formality
+        default_empathy = preset.empathy
+        default_technical_level = preset.technical_level
+        default_patience = preset.patience
         default_avatar = CLASS_AVATAR.get(preset.cls, "🧙‍♂️")
     
     selected_preset_key = st.selectbox(
@@ -168,6 +176,10 @@ with left:
         default_humor = preset.humor
         default_assertiveness = preset.assertiveness
         default_creativity = preset.creativity
+        default_formality = preset.formality
+        default_empathy = preset.empathy
+        default_technical_level = preset.technical_level
+        default_patience = preset.patience
         default_avatar = CLASS_AVATAR.get(preset.cls, "🧙‍♂️")
 
     version_codename = st.text_input("Version + Codename", default_version)
@@ -242,6 +254,10 @@ with left:
     humor = st.slider("Humor", 0, 10, default_humor)
     assertiveness = st.slider("Assertiveness", 1, 10, default_assertiveness)
     creativity = st.slider("Creativity", 0, 10, default_creativity)
+    formality = st.slider("Formality", 0, 10, default_formality)
+    empathy = st.slider("Empathy", 0, 10, default_empathy)
+    technical_level = st.slider("Technical Level", 0, 10, default_technical_level)
+    patience = st.slider("Patience", 0, 10, default_patience)
 
     cfg = PersonaConfig(
         version_codename=version_codename,
@@ -252,6 +268,10 @@ with left:
         humor=humor,
         assertiveness=assertiveness,
         creativity=creativity,
+        formality=formality,
+        empathy=empathy,
+        technical_level=technical_level,
+        patience=patience,
         name=persona_name,
         avatar=avatar,
     )
