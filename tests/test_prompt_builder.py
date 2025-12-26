@@ -291,3 +291,78 @@ class TestBuildSystemPrompt:
         s = build_system_prompt(cfg)
         assert "Do not claim sentience" in s
         assert "financial/legal/medical advice" in s
+
+
+class TestPersonaSaveLoad:
+    """Tests for persona save/load functionality."""
+
+    def test_to_dict_converts_config_to_dict(self):
+        cfg = PersonaConfig(
+            version_codename="Test Version",
+            cls="Mage",
+            spec="Teacher",
+            mode="Play",
+            verbosity=6,
+            humor=4,
+            assertiveness=6,
+            creativity=5,
+            name="Test Persona",
+            avatar="🧙‍♂️",
+        )
+        data = cfg.to_dict()
+        assert data["version_codename"] == "Test Version"
+        assert data["cls"] == "Mage"
+        assert data["avatar"] == "🧙‍♂️"
+
+    def test_from_dict_creates_config_from_dict(self):
+        data = {
+            "version_codename": "Test Version",
+            "cls": "Mage",
+            "spec": "Teacher",
+            "mode": "Play",
+            "verbosity": 6,
+            "humor": 4,
+            "assertiveness": 6,
+            "creativity": 5,
+            "name": "Test Persona",
+            "avatar": "🧙‍♂️",
+        }
+        cfg = PersonaConfig.from_dict(data)
+        assert cfg.version_codename == "Test Version"
+        assert cfg.cls == "Mage"
+        assert cfg.avatar == "🧙‍♂️"
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        cfg = PersonaConfig(
+            version_codename="Test Version",
+            cls="Mage",
+            spec="Teacher",
+            mode="Play",
+            verbosity=6,
+            humor=4,
+            assertiveness=6,
+            creativity=5,
+            name="Test Persona",
+            avatar="🧙‍♂️",
+        )
+        
+        filepath = tmp_path / "test_persona.json"
+        cfg.save_to_file(str(filepath))
+        
+        loaded_cfg = PersonaConfig.load_from_file(str(filepath))
+        
+        assert loaded_cfg.version_codename == cfg.version_codename
+        assert loaded_cfg.cls == cfg.cls
+        assert loaded_cfg.avatar == cfg.avatar
+        assert loaded_cfg.name == cfg.name
+
+    def test_load_from_nonexistent_file_raises_error(self):
+        with pytest.raises(PersonaValidationError, match="Persona file not found"):
+            PersonaConfig.load_from_file("nonexistent_file.json")
+
+    def test_load_from_invalid_json_raises_error(self, tmp_path):
+        filepath = tmp_path / "invalid.json"
+        filepath.write_text("invalid json content")
+        
+        with pytest.raises(PersonaValidationError, match="Invalid persona file format"):
+            PersonaConfig.load_from_file(str(filepath))

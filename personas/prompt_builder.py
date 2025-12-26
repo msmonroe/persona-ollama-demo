@@ -1,5 +1,8 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+import json
+import os
+from typing import Optional
 from personas.presets import CLASS_FLAVOR, SPEC_BEHAVIOR
 
 
@@ -37,6 +40,40 @@ class PersonaConfig:
             raise PersonaValidationError(f"{name} must be an integer, got {type(value).__name__}")
         if value < min_val or value > max_val:
             raise PersonaValidationError(f"{name} must be between {min_val} and {max_val}, got {value}")
+
+    def to_dict(self) -> dict:
+        """Convert persona config to dictionary for JSON serialization."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> PersonaConfig:
+        """Create persona config from dictionary."""
+        return cls(**data)
+
+    def save_to_file(self, filepath: str) -> None:
+        """Save persona config to JSON file."""
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raise PersonaValidationError(f"Failed to save persona: {e}")
+
+    @classmethod
+    def load_from_file(cls, filepath: str) -> PersonaConfig:
+        """Load persona config from JSON file."""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return cls.from_dict(data)
+        except FileNotFoundError:
+            raise PersonaValidationError(f"Persona file not found: {filepath}")
+        except json.JSONDecodeError as e:
+            raise PersonaValidationError(f"Invalid persona file format: {e}")
+        except Exception as e:
+            raise PersonaValidationError(f"Failed to load persona: {e}")
 
 def build_system_prompt(cfg: PersonaConfig) -> str:
     if cfg.cls not in CLASS_FLAVOR:

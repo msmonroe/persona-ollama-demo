@@ -1,11 +1,13 @@
 from __future__ import annotations
 import os
+import json
+from datetime import datetime
 from dotenv import load_dotenv
 import streamlit as st
 
 from ollama.client import chat as ollama_chat, chat_stream, health_check, OllamaConnectionError
 from personas.presets import PRESETS, CLASS_FLAVOR, SPEC_BEHAVIOR, CLASS_AVATAR
-from personas.prompt_builder import PersonaConfig, build_system_prompt
+from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError
 
 load_dotenv()
 
@@ -44,30 +46,78 @@ with left:
     st.subheader("Character Creator")
 
     preset_titles = {p.key: p.title for p in PRESETS}
+    
+    # Check if we have a loaded custom persona
+    if "loaded_config" in st.session_state:
+        loaded_cfg = st.session_state.loaded_config
+        # Use loaded config as defaults
+        default_preset_key = "custom_loaded"
+        default_version = loaded_cfg.version_codename
+        default_name = loaded_cfg.name
+        default_cls = loaded_cfg.cls
+        default_spec = loaded_cfg.spec
+        default_mode = loaded_cfg.mode
+        default_verbosity = loaded_cfg.verbosity
+        default_humor = loaded_cfg.humor
+        default_assertiveness = loaded_cfg.assertiveness
+        default_creativity = loaded_cfg.creativity
+        default_avatar = loaded_cfg.avatar
+    else:
+        # Use preset defaults
+        preset = next(p for p in PRESETS if p.key == st.session_state.selected_preset)
+        default_preset_key = st.session_state.selected_preset
+        default_version = DEFAULT_VERSION
+        default_name = preset.name
+        default_cls = preset.cls
+        default_spec = preset.spec
+        default_mode = preset.mode
+        default_verbosity = preset.verbosity
+        default_humor = preset.humor
+        default_assertiveness = preset.assertiveness
+        default_creativity = preset.creativity
+        default_avatar = CLASS_AVATAR.get(preset.cls, "🧙‍♂️")
+    
     selected_preset_key = st.selectbox(
         "Preset",
         options=[p.key for p in PRESETS],
         format_func=lambda k: preset_titles[k],
-        index=[p.key for p in PRESETS].index(st.session_state.selected_preset),
+        index=[p.key for p in PRESETS].index(default_preset_key) if default_preset_key in [p.key for p in PRESETS] else 0,
     )
+    
+    # Clear loaded config if user selects a different preset
+    if selected_preset_key != st.session_state.selected_preset and "loaded_config" in st.session_state:
+        del st.session_state.loaded_config
+    
     st.session_state.selected_preset = selected_preset_key
-    preset = next(p for p in PRESETS if p.key == selected_preset_key)
+    
+    # Only update defaults if not using loaded config
+    if "loaded_config" not in st.session_state:
+        preset = next(p for p in PRESETS if p.key == selected_preset_key)
+        default_name = preset.name
+        default_cls = preset.cls
+        default_spec = preset.spec
+        default_mode = preset.mode
+        default_verbosity = preset.verbosity
+        default_humor = preset.humor
+        default_assertiveness = preset.assertiveness
+        default_creativity = preset.creativity
+        default_avatar = CLASS_AVATAR.get(preset.cls, "🧙‍♂️")
 
-    version_codename = st.text_input("Version + Codename", DEFAULT_VERSION)
-    persona_name = st.text_input("Persona Name (optional)", preset.name, placeholder="e.g., Archmage Lyra")
+    version_codename = st.text_input("Version + Codename", default_version)
+    persona_name = st.text_input("Persona Name (optional)", default_name, placeholder="e.g., Archmage Lyra")
     model = st.text_input("Ollama model", DEFAULT_MODEL)
     streaming_enabled = st.checkbox("Enable streaming responses", value=False, help="Show responses as they are generated in real-time")
 
-    cls = st.selectbox("Class", list(CLASS_FLAVOR.keys()), index=list(CLASS_FLAVOR.keys()).index(preset.cls))
+    cls = st.selectbox("Class", list(CLASS_FLAVOR.keys()), index=list(CLASS_FLAVOR.keys()).index(default_cls))
     default_avatar = CLASS_AVATAR.get(cls, "🧙‍♂️")
     avatar = st.selectbox("Avatar", list(CLASS_AVATAR.values()), index=list(CLASS_AVATAR.values()).index(default_avatar), format_func=lambda x: f"{x} {list(CLASS_AVATAR.keys())[list(CLASS_AVATAR.values()).index(x)]}")
-    spec = st.selectbox("Spec", list(SPEC_BEHAVIOR.keys()), index=list(SPEC_BEHAVIOR.keys()).index(preset.spec))
-    mode = st.radio("Mode", ["Work", "Play"], index=0 if preset.mode == "Work" else 1, horizontal=True)
+    spec = st.selectbox("Spec", list(SPEC_BEHAVIOR.keys()), index=list(SPEC_BEHAVIOR.keys()).index(default_spec))
+    mode = st.radio("Mode", ["Work", "Play"], index=0 if default_mode == "Work" else 1, horizontal=True)
 
-    verbosity = st.slider("Verbosity", 1, 10, preset.verbosity)
-    humor = st.slider("Humor", 0, 10, preset.humor)
-    assertiveness = st.slider("Assertiveness", 1, 10, preset.assertiveness)
-    creativity = st.slider("Creativity", 0, 10, preset.creativity)
+    verbosity = st.slider("Verbosity", 1, 10, default_verbosity)
+    humor = st.slider("Humor", 0, 10, default_humor)
+    assertiveness = st.slider("Assertiveness", 1, 10, default_assertiveness)
+    creativity = st.slider("Creativity", 0, 10, default_creativity)
 
     cfg = PersonaConfig(
         version_codename=version_codename,
@@ -94,6 +144,65 @@ with left:
     if st.button("New Chat"):
         st.session_state.msgs = []
         st.rerun()
+
+    # Save/Load Personas Section
+    st.markdown("### 💾 Save/Load Personas")
+    
+    # Clear loaded persona button
+    if "loaded_config" in st.session_state:
+        if st.button("🔄 Return to Presets"):
+            del st.session_state.loaded_config
+            st.session_state.selected_preset = PRESETS[0].key
+            st.rerun()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        persona_save_name = st.text_input("Persona Name to Save", placeholder="e.g., My Custom Mage")
+        if st.button("💾 Save Persona") and persona_save_name.strip():
+            try:
+                # Create personas directory if it doesn't exist
+                personas_dir = os.path.join(os.getcwd(), "saved_personas")
+                os.makedirs(personas_dir, exist_ok=True)
+                
+                # Generate filename with timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{persona_save_name.replace(' ', '_')}_{timestamp}.json"
+                filepath = os.path.join(personas_dir, filename)
+                
+                cfg.save_to_file(filepath)
+                st.success(f"✅ Persona saved as: {filename}")
+                
+                # Clear the input
+                st.session_state.save_name = ""
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Failed to save persona: {e}")
+    
+    with col2:
+        # Get list of saved personas
+        personas_dir = os.path.join(os.getcwd(), "saved_personas")
+        saved_personas = []
+        if os.path.exists(personas_dir):
+            saved_personas = [f for f in os.listdir(personas_dir) if f.endswith('.json')]
+        
+        if saved_personas:
+            selected_persona = st.selectbox("Load Saved Persona", ["Choose a persona..."] + saved_personas)
+            if st.button("📂 Load Persona") and selected_persona != "Choose a persona...":
+                try:
+                    filepath = os.path.join(personas_dir, selected_persona)
+                    loaded_cfg = PersonaConfig.load_from_file(filepath)
+                    
+                    # Update session state to reflect loaded persona
+                    st.session_state.selected_preset = "custom_loaded"
+                    st.session_state.loaded_config = loaded_cfg
+                    
+                    st.success(f"✅ Loaded persona: {selected_persona}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to load persona: {e}")
+        else:
+            st.info("No saved personas found. Save one first!")
 
 with right:
     st.subheader("Chat")
