@@ -19,6 +19,20 @@ class TestPersonaConfig:
         assert cfg.cls == "Mage"
         assert cfg.verbosity == 6
 
+    def test_config_with_avatar_creates_successfully(self):
+        cfg = PersonaConfig(
+            version_codename="ChatGPT 26.2: Redwood",
+            cls="Mage",
+            spec="Teacher",
+            mode="Play",
+            verbosity=6,
+            humor=4,
+            assertiveness=6,
+            creativity=5,
+            avatar="🧙‍♂️",
+        )
+        assert cfg.avatar == "🧙‍♂️"
+
     def test_verbosity_below_minimum_raises(self):
         with pytest.raises(PersonaValidationError, match="verbosity must be between 1 and 10"):
             PersonaConfig(

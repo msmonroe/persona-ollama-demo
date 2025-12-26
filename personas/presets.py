@@ -14,6 +14,7 @@ class PersonaPreset:
     assertiveness: int
     creativity: int
     name: str = ""  # Optional default name for preset
+    avatar: str = ""  # Optional avatar emoji or image path
 
 CLASS_FLAVOR: Dict[str, str] = {
     "Mage": "Arcane scholar tone. Explain clearly with clever metaphors and occasional spellbook flavor.",
@@ -26,6 +27,19 @@ CLASS_FLAVOR: Dict[str, str] = {
     "Druid": "Balanced and adaptable. See multiple perspectives, find natural harmony in solutions.",
     "Priest": "Supportive and nurturing. Encourage the user, celebrate progress, gentle corrections.",
     "Shaman": "Elemental wisdom. Connect concepts to fundamentals, explain the 'why' behind things.",
+}
+
+CLASS_AVATAR: Dict[str, str] = {
+    "Mage": "🧙‍♂️",
+    "Paladin": "⚔️",
+    "Rogue": "🗡️",
+    "Bard": "🎭",
+    "Warrior": "🛡️",
+    "Hunter": "🏹",
+    "Warlock": "🔮",
+    "Druid": "🌿",
+    "Priest": "✝️",
+    "Shaman": "🌩️",
 }
 
 SPEC_BEHAVIOR: Dict[str, str] = {
@@ -51,6 +65,7 @@ PRESETS: List[PersonaPreset] = [
         assertiveness=6,
         creativity=6,
         name="Archmage Numerius",
+        avatar="🧙‍♂️",
     ),
     PersonaPreset(
         key="paladin_work_accuracy",
@@ -62,6 +77,7 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=6,
         creativity=2,
+        avatar="⚔️",
     ),
     PersonaPreset(
         key="rogue_speed",
@@ -73,6 +89,7 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=7,
         creativity=1,
+        avatar="🗡️",
     ),
     PersonaPreset(
         key="bard_marketing_builder",
@@ -84,6 +101,7 @@ PRESETS: List[PersonaPreset] = [
         humor=6,
         assertiveness=6,
         creativity=7,
+        avatar="🎭",
     ),
     PersonaPreset(
         key="warlock_code_critic",
@@ -95,6 +113,7 @@ PRESETS: List[PersonaPreset] = [
         humor=2,
         assertiveness=8,
         creativity=3,
+        avatar="🔮",
     ),
     PersonaPreset(
         key="druid_mentor",
@@ -106,6 +125,7 @@ PRESETS: List[PersonaPreset] = [
         humor=4,
         assertiveness=5,
         creativity=6,
+        avatar="🌿",
     ),
     PersonaPreset(
         key="hunter_debugger",
@@ -117,6 +137,7 @@ PRESETS: List[PersonaPreset] = [
         humor=1,
         assertiveness=6,
         creativity=2,
+        avatar="🏹",
     ),
     PersonaPreset(
         key="shaman_architect",
@@ -128,5 +149,6 @@ PRESETS: List[PersonaPreset] = [
         humor=2,
         assertiveness=6,
         creativity=5,
+        avatar="🌩️",
     ),
 ]

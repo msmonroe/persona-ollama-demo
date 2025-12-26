@@ -1,6 +1,6 @@
 # Persona Creator Demo (WoW-style) + Ollama 🦙
 
-A local demo that lets you pick an AI "Class" + "Spec" (WoW-style) and generates a system prompt that steers a local Ollama model.
+A local demo that lets you pick an AI "Class" + "Spec" (WoW-style), customize visual avatars, and generates a system prompt that steers a local Ollama model. Features real-time streaming responses for an interactive chat experience.
 
 ## Prereqs
 - Ollama installed and running

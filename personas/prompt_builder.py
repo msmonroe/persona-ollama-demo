@@ -19,6 +19,7 @@ class PersonaConfig:
     assertiveness: int
     creativity: int
     name: str = ""  # Optional persona name
+    avatar: str = ""  # Optional avatar emoji or image path
 
     def __post_init__(self):
         """Validate all fields after initialization."""
