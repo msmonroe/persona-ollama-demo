@@ -10,14 +10,12 @@ from models import registry
 from personas.presets import PRESETS, CLASS_FLAVOR, SPEC_BEHAVIOR, CLASS_AVATAR
 from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError, PersonaValidationError
 from conversations import Conversation, ConversationManager
+from themes import theme_manager
 
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "llama3.2")
-DEFAULT_VERSION = os.getenv("APP_VERSION", "ChatGPT 26.2: Redwood")
-
-st.set_page_config(page_title="Persona Creator + Multi-Model AI", layout="wide")
-st.title("Persona Creator Demo (WoW-style) + Multi-Model AI 🤖")
+DEFAULT_VERSION = os.getenv("APP_VERSION", "Persona Creator v1.3")
 
 # Initialize conversation manager
 conversation_manager = ConversationManager()
@@ -39,7 +37,31 @@ def check_provider_status(provider_name: str):
 provider_healthy = True
 provider_error = None
 
-left, right = st.columns([1, 2])
+# Enhanced page config with theme support
+st.set_page_config(
+    page_title="Persona Creator + Multi-Model AI",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/msmonroe/persona-ollama-demo',
+        'Report a bug': 'https://github.com/msmonroe/persona-ollama-demo/issues',
+        'About': '''
+        ## Persona Creator Demo (WoW-style) + Multi-Model AI 🤖
+
+        A demo that lets you pick an AI **Class** + **Spec** (WoW-style), customize visual avatars,
+        and generates a **system prompt** that steers multiple AI models.
+
+        **Features:**
+        - WoW-style Class/Spec persona builder
+        - Multi-model AI support (Ollama, OpenAI, Anthropic, Google, xAI, DeepSeek)
+        - Conversation management with save/load
+        - Enhanced theming and styling
+        - Real-time streaming responses
+        '''
+    }
+)
+
+st.title("🎭 Persona Creator Demo (WoW-style) + Multi-Model AI 🤖")
 
 def init_state():
     if "msgs" not in st.session_state:
@@ -50,8 +72,42 @@ def init_state():
         st.session_state.current_conversation = None
     if "conversation_title" not in st.session_state:
         st.session_state.conversation_title = ""
+    if "theme" not in st.session_state:
+        st.session_state.theme = "light"
+    if "use_class_theme" not in st.session_state:
+        st.session_state.use_class_theme = True
 
+# Initialize state first
 init_state()
+
+# Theme selection and application
+col_theme1, col_theme2, col_theme3 = st.columns([1, 1, 2])
+
+with col_theme1:
+    selected_theme = st.selectbox(
+        "🎨 Theme",
+        options=["light", "dark"],
+        index=["light", "dark"].index(st.session_state.theme),
+        help="Choose your preferred color theme"
+    )
+    st.session_state.theme = selected_theme
+
+with col_theme2:
+    use_class_theme = st.checkbox(
+        "Class Colors",
+        value=st.session_state.use_class_theme,
+        help="Use WoW class-specific colors"
+    )
+    st.session_state.use_class_theme = use_class_theme
+
+with col_theme3:
+    st.caption("💡 Tip: Try different themes and class colors for unique experiences!")
+
+# Apply theme (will be updated after persona selection)
+current_theme = theme_manager.get_theme(st.session_state.theme)
+theme_manager.apply_theme_css(current_theme)
+
+left, right = st.columns([1, 2])
 
 with left:
     st.subheader("Character Creator")
@@ -201,13 +257,25 @@ with left:
     )
     system_prompt = build_system_prompt(cfg)
 
-    st.markdown("### Persona Badge")
-    name_display = f" \"{persona_name}\"" if persona_name else ""
-    st.markdown(f"{avatar} **{version_codename}{name_display}** | {cls} / {spec} | {mode}")
-    st.code(f"{version_codename}{name_display} | {cls} / {spec} | {mode}")
+    # Apply class-specific theme colors if enabled
+    if st.session_state.use_class_theme:
+        class_colors = theme_manager.get_class_theme(cls)
+        theme_manager.apply_theme_css(current_theme, class_colors)
 
-    with st.expander("Generated system prompt"):
-        st.code(system_prompt)
+    # Enhanced Persona Badge with styling
+    st.markdown("### 👤 Persona Badge")
+    persona_badge_html = theme_manager.create_persona_badge(
+        persona_name or version_codename,
+        cls, spec, mode, avatar
+    )
+    st.markdown(persona_badge_html, unsafe_allow_html=True)
+
+    # Provider badge
+    provider_badge_class = theme_manager.get_provider_badge_class(selected_provider_name)
+    st.markdown(f'<span class="{provider_badge_class}">{selected_provider_name}</span>', unsafe_allow_html=True)
+
+    with st.expander("📝 Generated system prompt"):
+        st.code(system_prompt, language="text")
 
     if st.button("New Chat"):
         # Save current conversation if it has messages
@@ -372,17 +440,50 @@ with left:
     if saved_conversations:
         with st.expander("📚 Conversation History", expanded=False):
             for conv in saved_conversations[:10]:  # Show last 10
-                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                # Create styled conversation item
+                conversation_html = f"""
+                <div class="conversation-item">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                        <div style="flex: 1;">
+                            <strong style="color: var(--text-color); font-size: 1.1em;">{conv.title}</strong>
+                            <div style="color: var(--text-secondary-color); font-size: 0.9em; margin-top: 0.25rem;">
+                                {conv.persona_name} • {conv.provider_name}/{conv.model_name}
+                            </div>
+                            <div style="color: var(--text-secondary-color); font-size: 0.8em;">
+                                {conv.get_summary()}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button style="
+                                background-color: var(--primary-color);
+                                color: white;
+                                border: none;
+                                border-radius: var(--border-radius);
+                                padding: 0.25rem 0.75rem;
+                                font-size: 0.8em;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="javascript:void(0)" id="load_{conv.id}">📂 Load</button>
+                            <button style="
+                                background-color: var(--error-color);
+                                color: white;
+                                border: none;
+                                border-radius: var(--border-radius);
+                                padding: 0.25rem 0.75rem;
+                                font-size: 0.8em;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="javascript:void(0)" id="delete_{conv.id}">🗑️ Delete</button>
+                        </div>
+                    </div>
+                </div>
+                """
+                st.markdown(conversation_html, unsafe_allow_html=True)
 
+                # Handle button clicks (since HTML buttons don't work directly in Streamlit)
+                col1, col2 = st.columns([1, 1])
                 with col1:
-                    st.write(f"**{conv.title}**")
-                    st.caption(f"{conv.persona_name} • {conv.provider_name}/{conv.model_name}")
-
-                with col2:
-                    st.caption(f"{conv.get_summary()}")
-
-                with col3:
-                    if st.button("📂 Load", key=f"load_{conv.id}"):
+                    if st.button("📂 Load", key=f"load_{conv.id}", help=f"Load conversation: {conv.title}"):
                         # Save current conversation if it has messages
                         if st.session_state.current_conversation and st.session_state.msgs:
                             conversation_manager.save_conversation(st.session_state.current_conversation)
@@ -393,8 +494,8 @@ with left:
                         st.success(f"✅ Loaded: {conv.title}")
                         st.rerun()
 
-                with col4:
-                    if st.button("🗑️ Delete", key=f"delete_{conv.id}"):
+                with col2:
+                    if st.button("🗑️ Delete", key=f"delete_{conv.id}", help=f"Delete conversation: {conv.title}"):
                         if conversation_manager.delete_conversation(conv.id):
                             st.success("🗑️ Conversation deleted!")
                             st.rerun()
@@ -448,11 +549,64 @@ with right:
     else:
         st.caption("No active conversation - start chatting to create one!")
 
-    for m in st.session_state.msgs:
+    # Display chat messages with enhanced styling
+    for i, m in enumerate(st.session_state.msgs):
         if m["role"] == "assistant":
-            st.chat_message(m["role"], avatar=avatar).write(m["content"])
+            # Enhanced assistant message with theme styling
+            assistant_html = f"""
+            <div style="
+                background-color: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-left: 4px solid var(--accent-color);
+                border-radius: var(--border-radius);
+                padding: var(--spacing-md);
+                margin: var(--spacing-sm) 0;
+                box-shadow: var(--shadow-sm);
+                position: relative;
+            ">
+                <div style="
+                    position: absolute;
+                    top: var(--spacing-sm);
+                    left: var(--spacing-sm);
+                    font-size: 1.2em;
+                    opacity: 0.8;
+                ">{avatar}</div>
+                <div style="
+                    margin-left: 2.5rem;
+                    color: var(--text-color);
+                    line-height: 1.5;
+                ">{m["content"]}</div>
+            </div>
+            """
+            st.markdown(assistant_html, unsafe_allow_html=True)
         else:
-            st.chat_message(m["role"], avatar="👤").write(m["content"])
+            # Enhanced user message with theme styling
+            user_html = f"""
+            <div style="
+                background-color: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-left: 4px solid var(--primary-color);
+                border-radius: var(--border-radius);
+                padding: var(--spacing-md);
+                margin: var(--spacing-sm) 0;
+                box-shadow: var(--shadow-sm);
+                position: relative;
+            ">
+                <div style="
+                    position: absolute;
+                    top: var(--spacing-sm);
+                    left: var(--spacing-sm);
+                    font-size: 1.2em;
+                    opacity: 0.8;
+                ">👤</div>
+                <div style="
+                    margin-left: 2.5rem;
+                    color: var(--text-color);
+                    line-height: 1.5;
+                ">{m["content"]}</div>
+            </div>
+            """
+            st.markdown(user_html, unsafe_allow_html=True)
 
     user_text = st.chat_input("Ask something (try an accounting question)…")
     if user_text:
@@ -474,7 +628,7 @@ with right:
 
         try:
             if streaming_enabled:
-                # Streaming response
+                # Simplified streaming response using standard Streamlit chat
                 with st.chat_message("assistant", avatar=avatar):
                     message_placeholder = st.empty()
                     accumulated_content = ""
@@ -493,16 +647,66 @@ with right:
 
                     reply = accumulated_content
             else:
-                # Non-streaming response
+                # Non-streaming response with enhanced styling
                 reply = selected_provider.chat(
                     model=selected_model,
                     system_prompt=system_prompt,
                     messages=st.session_state.msgs
                 )
-                st.chat_message("assistant", avatar=avatar).write(reply)
+                assistant_reply_html = f"""
+                <div style="
+                    background-color: var(--surface-color);
+                    border: 1px solid var(--border-color);
+                    border-left: 4px solid var(--accent-color);
+                    border-radius: var(--border-radius);
+                    padding: var(--spacing-md);
+                    margin: var(--spacing-sm) 0;
+                    box-shadow: var(--shadow-sm);
+                    position: relative;
+                ">
+                    <div style="
+                        position: absolute;
+                        top: var(--spacing-sm);
+                        left: var(--spacing-sm);
+                        font-size: 1.2em;
+                        opacity: 0.8;
+                    ">{avatar}</div>
+                    <div style="
+                        margin-left: 2.5rem;
+                        color: var(--text-color);
+                        line-height: 1.5;
+                    ">{reply}</div>
+                </div>
+                """
+                st.markdown(assistant_reply_html, unsafe_allow_html=True)
         except Exception as e:
             reply = f"Error talking to {selected_provider_name}: {e}"
-            st.chat_message("assistant", avatar=avatar).write(reply)
+            error_reply_html = f"""
+            <div style="
+                background-color: var(--surface-color);
+                border: 1px solid var(--border-color);
+                border-left: 4px solid var(--error-color);
+                border-radius: var(--border-radius);
+                padding: var(--spacing-md);
+                margin: var(--spacing-sm) 0;
+                box-shadow: var(--shadow-sm);
+                position: relative;
+            ">
+                <div style="
+                    position: absolute;
+                    top: var(--spacing-sm);
+                    left: var(--spacing-sm);
+                    font-size: 1.2em;
+                    opacity: 0.8;
+                ">{avatar}</div>
+                <div style="
+                    margin-left: 2.5rem;
+                    color: var(--error-color);
+                    line-height: 1.5;
+                ">{reply}</div>
+            </div>
+            """
+            st.markdown(error_reply_html, unsafe_allow_html=True)
 
         # Add assistant message
         st.session_state.msgs.append({"role": "assistant", "content": reply})

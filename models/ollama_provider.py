@@ -24,9 +24,24 @@ class OllamaProvider(ModelProvider):
             response = requests.get(f"{self._base_url()}/api/tags", timeout=5)
             response.raise_for_status()
             data = response.json()
-            return [model["name"] for model in data.get("models", [])]
+            models = [model["name"] for model in data.get("models", [])]
+            
+            # Sort models with preferred ones first (smaller models that are likely to work)
+            preferred_order = ['llama3.2:latest', 'llama3.2:3b', 'llama3.1:8b', 'mistral:latest']
+            sorted_models = []
+            
+            # Add preferred models first if they exist
+            for preferred in preferred_order:
+                if preferred in models:
+                    sorted_models.append(preferred)
+                    models.remove(preferred)
+            
+            # Add remaining models
+            sorted_models.extend(models)
+            return sorted_models
+            
         except:
-            return ["llama3.2", "llama3.1", "mistral", "codellama"]  # Fallback defaults
+            return ["llama3.2:latest", "llama3.2:3b", "llama3.1:8b", "mistral:latest"]  # Fallback defaults
 
     def _get_api_key(self) -> Optional[str]:
         return None  # Ollama doesn't use API keys

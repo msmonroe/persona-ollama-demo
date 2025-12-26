@@ -4,7 +4,7 @@ Google (Gemini) model provider implementation.
 from __future__ import annotations
 from typing import List, Dict, Any, Optional, Generator
 import os
-import google.generativeai as genai
+import google.genai as genai
 from . import ModelProvider
 
 
@@ -15,13 +15,18 @@ class GoogleProvider(ModelProvider):
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key)
-        self._initialized = False
+        self._client = None
 
     def _ensure_initialized(self):
         """Lazy initialization of Google client."""
-        if not self._initialized and self.api_key:
-            genai.configure(api_key=self.api_key)
-            self._initialized = True
+        if self._client is None and self.api_key:
+            self._client = genai.Client(api_key=self.api_key)
+
+    @property
+    def client(self):
+        """Lazy initialization of Google client."""
+        self._ensure_initialized()
+        return self._client
 
     @property
     def name(self) -> str:
@@ -46,24 +51,31 @@ class GoogleProvider(ModelProvider):
         **kwargs
     ) -> str:
         """Non-streaming chat completion."""
-        self._ensure_initialized()
         if not self.api_key:
             raise Exception("Google API key not configured")
             
         try:
-            model_instance = genai.GenerativeModel(model)
-
             # Convert messages to Gemini format
-            history = []
-            for msg in messages[:-1]:  # All but last message
+            contents = []
+            
+            # Add system prompt as first user message
+            contents.append({
+                "role": "user",
+                "parts": [{"text": f"System: {system_prompt}"}]
+            })
+            
+            # Add conversation history
+            for msg in messages:
                 role = "user" if msg["role"] == "user" else "model"
-                history.append({"role": role, "parts": [msg["content"]]})
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg["content"]}]
+                })
 
-            chat = model_instance.start_chat(history=history)
-
-            # Send the last message
-            last_message = messages[-1]["content"] if messages else ""
-            response = chat.send_message(f"System: {system_prompt}\n\n{last_message}")
+            response = self.client.models.generate_content(
+                model=model,
+                contents=contents
+            )
 
             return response.text
         except Exception as e:
@@ -77,26 +89,30 @@ class GoogleProvider(ModelProvider):
         **kwargs
     ) -> Generator[str, None, None]:
         """Streaming chat completion."""
-        self._ensure_initialized()
         if not self.api_key:
             raise Exception("Google API key not configured")
             
         try:
-            model_instance = genai.GenerativeModel(model)
-
             # Convert messages to Gemini format
-            history = []
-            for msg in messages[:-1]:  # All but last message
+            contents = []
+            
+            # Add system prompt as first user message
+            contents.append({
+                "role": "user",
+                "parts": [{"text": f"System: {system_prompt}"}]
+            })
+            
+            # Add conversation history
+            for msg in messages:
                 role = "user" if msg["role"] == "user" else "model"
-                history.append({"role": role, "parts": [msg["content"]]})
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg["content"]}]
+                })
 
-            chat = model_instance.start_chat(history=history)
-
-            # Send the last message with streaming
-            last_message = messages[-1]["content"] if messages else ""
-            response = chat.send_message(
-                f"System: {system_prompt}\n\n{last_message}",
-                stream=True
+            response = self.client.models.generate_content_stream(
+                model=model,
+                contents=contents
             )
 
             for chunk in response:
@@ -107,14 +123,15 @@ class GoogleProvider(ModelProvider):
 
     def health_check(self) -> bool:
         """Check if Google API is accessible."""
-        self._ensure_initialized()
         if not self.api_key:
             return False
             
         try:
             # Simple test request
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content("Hello")
+            response = self.client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=[{"role": "user", "parts": [{"text": "Hello"}]}]
+            )
             return bool(response.text)
         except:
             return False

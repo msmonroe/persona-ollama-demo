@@ -6,6 +6,9 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Generator
 import os
 
+# Import providers to register them
+from . import providers
+
 
 class ModelProvider(ABC):
     """Abstract base class for AI model providers."""
@@ -93,3 +96,7 @@ class ModelProviderRegistry:
 
 # Global registry instance
 registry = ModelProviderRegistry()
+
+# Import providers to register them (after registry is defined)
+from . import providers
+providers.setup_providers(registry)

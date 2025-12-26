@@ -13,7 +13,7 @@ class TestModelRegistry:
 
     def setup_method(self):
         """Set up providers before each test."""
-        setup_providers()
+        setup_providers(registry)
 
     def test_registry_has_providers(self):
         """Test that registry has providers registered."""

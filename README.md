@@ -2,6 +2,8 @@
 
 A local demo that lets you pick an AI **Class** + **Spec** (WoW-style), customize visual avatars, and generates a **system prompt** that steers multiple AI models. Includes **real-time streaming**, plus **save/load** for custom personas. Supports **Ollama**, **OpenAI**, **Anthropic (Claude)**, **Google (Gemini)**, **xAI (Grok)**, and **DeepSeek**.
 
+**Version 1.3** - Latest features include conversation management and enhanced theming.
+
 ## Why this exists (product rationale)
 
 Chatbots often feel inconsistent because multiple factors change independently (model variants, tool access, tuning, context). This demo makes behavior **explicit and user-controlled** by turning “vibes” into **knobs**:
@@ -30,16 +32,19 @@ Design goal: **increase user satisfaction and usability while reducing risk** vi
   - Export conversations (JSON, Text, Markdown)
   - Persistent chat history across sessions
 - **Multi-Model Support**: Ollama, OpenAI, Anthropic, Google, xAI, DeepSeek
+- **Enhanced Theming**: Light/dark themes with WoW class-specific color schemes
 
 ## Prereqs
 
 ### For Ollama (Local Models)
 - Ollama installed and running
 - A model pulled, e.g.:
-  - `ollama pull llama3.2`
+  - `ollama pull llama3.2` (recommended - smaller and faster)
+  - `ollama pull mistral` (alternative)
+- **Note:** Some large models may require significant RAM. The app prioritizes smaller, compatible models by default.
 
 ### For Cloud Models (Optional)
-Create a `.env` file with your API keys:
+Copy `.env.example` to `.env` and add your API keys:
 ```bash
 OPENAI_API_KEY=your_openai_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
@@ -56,6 +61,7 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
+# Edit .env to add your API keys for cloud providers (optional)
 
 ## run
 streamlit run app.py
@@ -86,7 +92,23 @@ The app includes comprehensive conversation management features:
 - Delete unwanted conversations from your history
 - Conversations are stored locally in the `saved_conversations/` directory
 - Each conversation has a unique ID and maintains full message history
-## Notes
+## Troubleshooting
+
+### Ollama 500 Internal Server Error
+If you get a "500 Server Error" when chatting with Ollama:
+- **Cause:** Large models may require more RAM than available on your system
+- **Solution:** The app automatically prioritizes smaller models (llama3.2:latest, llama3.2:3b, etc.)
+- **Manual fix:** Pull a smaller model with `ollama pull llama3.2` and restart the app
+
+### Model Not Found
+- Ensure Ollama is running: `ollama serve`
+- Pull the desired model: `ollama pull <model_name>`
+- Check available models: `ollama list`
+
+### Slow Responses
+- Try smaller models like `llama3.2:3b` instead of larger ones
+- Close other memory-intensive applications
+- Consider using cloud providers for faster inference
 
 ## Personas are presentation-layer instructions, not "entities".
 
