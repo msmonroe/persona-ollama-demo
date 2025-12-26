@@ -33,6 +33,7 @@ Design goal: **increase user satisfaction and usability while reducing risk** vi
   - Persistent chat history across sessions
 - **Multi-Model Support**: Ollama, OpenAI, Anthropic, Google, xAI, DeepSeek
 - **Enhanced Theming**: Light/dark themes with WoW class-specific color schemes
+- **Comprehensive Diagnostics**: Built-in performance monitoring, error tracking, and system health monitoring
 
 ## Prereqs
 
@@ -68,30 +69,39 @@ streamlit run app.py
 
 ## Test
 pytest -q
-## Conversation Management
+## Diagnostics and Monitoring
 
-The app includes comprehensive conversation management features:
+The app includes comprehensive instrumentation for diagnosing issues and monitoring performance:
 
-### Saving Conversations
-- Conversations are automatically saved when you start a new chat or close the app
-- You can manually save conversations with custom titles
-- Conversations include metadata (persona, model, timestamps)
+### Debug Panel
+Access the debug panel at the bottom of the main interface to view:
+- **Performance Metrics**: Response times, success rates, and operation statistics
+- **Error Tracking**: Recent errors with detailed context and error type analysis
+- **System Information**: Platform details, memory usage, and CPU information
+- **Operation Logs**: Recent operations with timestamps and metadata
 
-### Loading Conversations
-- Browse your conversation history in the expandable "Conversation History" section
-- Load any previous conversation to continue chatting
-- Conversations are sorted by most recent activity
+### Logging
+All operations are logged to `app.log` with detailed information including:
+- Chat requests and responses
+- Provider health checks
+- Persona save/load operations
+- Conversation management
+- Error conditions with full stack traces
 
-### Exporting Conversations
-- Export conversations in multiple formats:
-  - **JSON**: Full conversation data for backup/import
-  - **Text**: Human-readable format with timestamps
-  - **Markdown**: Formatted for documentation or sharing
+### Export Diagnostics
+Use the "Export Diagnostics Data" button to download a comprehensive JSON file containing:
+- Performance metrics and trends
+- Error summaries and recent failures
+- System information
+- Recent operation logs
 
-### Managing Conversations
-- Delete unwanted conversations from your history
-- Conversations are stored locally in the `saved_conversations/` directory
-- Each conversation has a unique ID and maintains full message history
+This data is invaluable for troubleshooting issues and optimizing performance.
+
+### Health Monitoring
+- Real-time provider connectivity checks
+- Automatic fallback to working providers
+- Performance degradation alerts
+- Memory and resource usage tracking
 ## Troubleshooting
 
 ### Ollama 500 Internal Server Error

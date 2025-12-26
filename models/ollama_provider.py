@@ -4,8 +4,10 @@ Ollama model provider implementation.
 from __future__ import annotations
 from typing import List, Dict, Any, Optional, Generator
 import os
+import time
 import requests
 from . import ModelProvider
+from instrumentation import instrumentation
 
 
 class OllamaProvider(ModelProvider):
@@ -58,17 +60,30 @@ class OllamaProvider(ModelProvider):
         **kwargs
     ) -> str:
         """Non-streaming chat completion."""
-        url = f"{self._base_url()}/api/chat"
-        payload = {
-            "model": model,
-            "stream": False,
-            "messages": [{"role": "system", "content": system_prompt}] + messages,
-        }
+        start_time = time.time()
+        try:
+            url = f"{self._base_url()}/api/chat"
+            payload = {
+                "model": model,
+                "stream": False,
+                "messages": [{"role": "system", "content": system_prompt}] + messages,
+            }
 
-        response = requests.post(url, json=payload, timeout=timeout_s)
-        response.raise_for_status()
-        data = response.json()
-        return data["message"]["content"]
+            response = requests.post(url, json=payload, timeout=timeout_s)
+            response.raise_for_status()
+            data = response.json()
+            result = data["message"]["content"]
+            
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_chat", True, duration, 
+                                        model=model, message_count=len(messages), 
+                                        response_length=len(result))
+            return result
+        except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_chat", False, duration, e,
+                                        model=model, message_count=len(messages))
+            raise
 
     def chat_stream(
         self,
@@ -79,29 +94,50 @@ class OllamaProvider(ModelProvider):
         **kwargs
     ) -> Generator[str, None, None]:
         """Streaming chat completion."""
-        url = f"{self._base_url()}/api/chat"
-        payload = {
-            "model": model,
-            "stream": True,
-            "messages": [{"role": "system", "content": system_prompt}] + messages,
-        }
+        start_time = time.time()
+        total_content = ""
+        try:
+            url = f"{self._base_url()}/api/chat"
+            payload = {
+                "model": model,
+                "stream": True,
+                "messages": [{"role": "system", "content": system_prompt}] + messages,
+            }
 
-        with requests.post(url, json=payload, timeout=timeout_s, stream=True) as response:
-            response.raise_for_status()
-            for line in response.iter_lines():
-                if line:
-                    import json
-                    data = json.loads(line)
-                    if "message" in data and "content" in data["message"]:
-                        yield data["message"]["content"]
-                    if data.get("done", False):
-                        break
+            with requests.post(url, json=payload, timeout=timeout_s, stream=True) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        import json
+                        data = json.loads(line)
+                        if "message" in data and "content" in data["message"]:
+                            content = data["message"]["content"]
+                            total_content += content
+                            yield content
+                        if data.get("done", False):
+                            break
+            
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_chat_stream", True, duration,
+                                        model=model, message_count=len(messages),
+                                        response_length=len(total_content))
+        except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_chat_stream", False, duration, e,
+                                        model=model, message_count=len(messages),
+                                        partial_response_length=len(total_content))
+            raise
 
     def health_check(self) -> bool:
         """Check if Ollama is running."""
+        start_time = time.time()
         try:
             response = requests.get(f"{self._base_url()}/api/tags", timeout=5)
             response.raise_for_status()
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_health_check", True, duration)
             return True
-        except:
+        except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("ollama_health_check", False, duration, e)
             return False

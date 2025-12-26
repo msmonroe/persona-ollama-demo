@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import json
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 import streamlit as st
@@ -11,6 +12,10 @@ from personas.presets import PRESETS, CLASS_FLAVOR, SPEC_BEHAVIOR, CLASS_AVATAR
 from personas.prompt_builder import PersonaConfig, build_system_prompt, PersonaValidationError, PersonaValidationError
 from conversations import Conversation, ConversationManager
 from themes import theme_manager
+from instrumentation import (
+    instrumentation, log_chat_request, log_chat_response, log_provider_health_check,
+    create_debug_panel, export_diagnostics
+)
 
 load_dotenv()
 
@@ -24,13 +29,20 @@ conversation_manager = ConversationManager()
 @st.cache_data(ttl=30)
 def check_provider_status(provider_name: str):
     """Check if the selected provider is accessible (cached for 30 seconds)."""
+    start_time = time.time()
     try:
         provider = registry.get_provider(provider_name)
         if provider and provider.health_check():
+            duration = time.time() - start_time
+            log_provider_health_check(provider_name, True, duration)
             return True, None
         else:
+            duration = time.time() - start_time
+            log_provider_health_check(provider_name, False, duration, Exception("Health check failed"))
             return False, f"Cannot connect to {provider_name}"
     except Exception as e:
+        duration = time.time() - start_time
+        log_provider_health_check(provider_name, False, duration, e)
         return False, str(e)
 
 # Provider health check will be done after provider selection
@@ -342,12 +354,14 @@ with left:
                 filepath = os.path.join(personas_dir, filename)
                 
                 cfg.save_to_file(filepath)
+                instrumentation.log_operation("persona_save", True, persona_name=persona_save_name, filepath=filename)
                 st.success(f"✅ Persona saved as: {filename}")
                 
                 # Clear the input
                 st.session_state.save_name = ""
                 st.rerun()
             except Exception as e:
+                instrumentation.log_operation("persona_save", False, error=e, persona_name=persona_save_name)
                 st.error(f"❌ Failed to save persona: {e}")
     
     with col2:
@@ -368,9 +382,11 @@ with left:
                     st.session_state.selected_preset = "custom_loaded"
                     st.session_state.loaded_config = loaded_cfg
                     
+                    instrumentation.log_operation("persona_load", True, persona_file=selected_persona)
                     st.success(f"✅ Loaded persona: {selected_persona}")
                     st.rerun()
                 except Exception as e:
+                    instrumentation.log_operation("persona_load", False, error=e, persona_file=selected_persona)
                     st.error(f"❌ Failed to load persona: {e}")
         else:
             st.info("No saved personas found. Save one first!")
@@ -386,6 +402,7 @@ with left:
             # Save current conversation if it has messages
             if st.session_state.current_conversation and st.session_state.msgs:
                 conversation_manager.save_conversation(st.session_state.current_conversation)
+                instrumentation.log_operation("conversation_save", True, conversation_id=st.session_state.current_conversation.id)
                 st.success("💾 Previous conversation saved!")
 
             # Create new conversation
@@ -397,6 +414,7 @@ with left:
                 provider_name=selected_provider_name,
                 model_name=selected_model
             )
+            instrumentation.log_operation("conversation_new", True, persona_name=persona_display_name)
             st.session_state.msgs = []
             st.session_state.conversation_title = ""
             st.rerun()
@@ -445,12 +463,14 @@ with left:
                     # Save current conversation if it has messages
                     if st.session_state.current_conversation and st.session_state.msgs:
                         conversation_manager.save_conversation(st.session_state.current_conversation)
+                        instrumentation.log_operation("conversation_save", True, conversation_id=st.session_state.current_conversation.id)
                         st.info("💾 Previous conversation saved!")
 
                     # Load selected conversation
                     st.session_state.current_conversation = selected_conv
                     st.session_state.msgs = selected_conv.get_messages_for_chat()
                     st.session_state.conversation_title = selected_conv.title
+                    instrumentation.log_operation("conversation_load", True, conversation_id=selected_conv.id, message_count=len(st.session_state.msgs))
                     st.success(f"✅ Loaded conversation: {selected_conv.title}")
                     st.rerun()
         else:
@@ -630,6 +650,9 @@ with right:
 
     user_text = st.chat_input("Ask something (try an accounting question)…")
     if user_text:
+        # Log chat request
+        log_chat_request(selected_provider_name, selected_model, len(st.session_state.msgs), streaming_enabled)
+
         # Create conversation if none exists
         if not st.session_state.current_conversation:
             persona_display_name = persona_name or f"{cls} {spec}"
@@ -654,6 +677,7 @@ with right:
                     accumulated_content = ""
 
                     try:
+                        start_time = time.time()
                         for chunk in selected_provider.chat_stream(
                             model=selected_model,
                             system_prompt=system_prompt,
@@ -661,18 +685,34 @@ with right:
                         ):
                             accumulated_content += chunk
                             message_placeholder.write(accumulated_content)
+                        duration = time.time() - start_time
+                        log_chat_response(selected_provider_name, selected_model, True,
+                                        len(accumulated_content), duration=duration)
                     except Exception as e:
+                        duration = time.time() - start_time
                         accumulated_content = f"Error during streaming: {e}"
                         message_placeholder.write(accumulated_content)
+                        log_chat_response(selected_provider_name, selected_model, False,
+                                        duration=duration, error=e)
 
                     reply = accumulated_content
             else:
                 # Non-streaming response with enhanced styling
-                reply = selected_provider.chat(
-                    model=selected_model,
-                    system_prompt=system_prompt,
-                    messages=st.session_state.msgs
-                )
+                start_time = time.time()
+                try:
+                    reply = selected_provider.chat(
+                        model=selected_model,
+                        system_prompt=system_prompt,
+                        messages=st.session_state.msgs
+                    )
+                    duration = time.time() - start_time
+                    log_chat_response(selected_provider_name, selected_model, True,
+                                    len(reply), duration=duration)
+                except Exception as e:
+                    duration = time.time() - start_time
+                    reply = f"Error talking to {selected_provider_name}: {e}"
+                    log_chat_response(selected_provider_name, selected_model, False,
+                                    duration=duration, error=e)
                 assistant_reply_html = f"""
                 <div style="
                     background-color: var(--surface-color);
@@ -701,6 +741,7 @@ with right:
                 st.markdown(assistant_reply_html, unsafe_allow_html=True)
         except Exception as e:
             reply = f"Error talking to {selected_provider_name}: {e}"
+            log_chat_response(selected_provider_name, selected_model, False, error=e)
             error_reply_html = f"""
             <div style="
                 background-color: var(--surface-color);
@@ -731,3 +772,18 @@ with right:
         # Add assistant message
         st.session_state.msgs.append({"role": "assistant", "content": reply})
         st.session_state.current_conversation.add_message("assistant", reply, avatar)
+
+# Debug and Diagnostics Panel
+st.markdown("---")
+create_debug_panel()
+
+# Export diagnostics for support
+st.markdown("### 📊 Export Diagnostics")
+if st.button("📤 Export Diagnostics Data"):
+    diagnostics_json = export_diagnostics()
+    st.download_button(
+        label="📥 Download Diagnostics",
+        data=diagnostics_json,
+        file_name=f"persona_creator_diagnostics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        mime="application/json"
+    )

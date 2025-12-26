@@ -4,8 +4,10 @@ OpenAI model provider implementation.
 from __future__ import annotations
 from typing import List, Dict, Any, Optional, Generator
 import os
+import time
 from openai import OpenAI
 from . import ModelProvider
+from instrumentation import instrumentation
 
 
 class OpenAIProvider(ModelProvider):
@@ -49,14 +51,23 @@ class OpenAIProvider(ModelProvider):
         **kwargs
     ) -> str:
         """Non-streaming chat completion."""
+        start_time = time.time()
         try:
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[{"role": "system", "content": system_prompt}] + messages,
                 **kwargs
             )
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_chat", True, duration,
+                                        model=model, message_count=len(messages),
+                                        response_length=len(result))
+            return result
         except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_chat", False, duration, e,
+                                        model=model, message_count=len(messages))
             raise Exception(f"OpenAI API error: {e}")
 
     def chat_stream(
@@ -67,6 +78,8 @@ class OpenAIProvider(ModelProvider):
         **kwargs
     ) -> Generator[str, None, None]:
         """Streaming chat completion."""
+        start_time = time.time()
+        total_content = ""
         try:
             response = self.client.chat.completions.create(
                 model=model,
@@ -77,15 +90,31 @@ class OpenAIProvider(ModelProvider):
 
             for chunk in response:
                 if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                    content = chunk.choices[0].delta.content
+                    total_content += content
+                    yield content
+            
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_chat_stream", True, duration,
+                                        model=model, message_count=len(messages),
+                                        response_length=len(total_content))
         except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_chat_stream", False, duration, e,
+                                        model=model, message_count=len(messages),
+                                        partial_response_length=len(total_content))
             raise Exception(f"OpenAI API error: {e}")
 
     def health_check(self) -> bool:
         """Check if OpenAI API is accessible."""
+        start_time = time.time()
         try:
             # Simple test request
             self.client.models.list(limit=1)
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_health_check", True, duration)
             return True
-        except:
+        except Exception as e:
+            duration = time.time() - start_time
+            instrumentation.log_operation("openai_health_check", False, duration, e)
             return False
