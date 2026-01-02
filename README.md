@@ -2,7 +2,7 @@
 
 A local demo that lets you pick an AI **Class** + **Spec** (WoW-style), customize visual avatars, and generates a **system prompt** that steers multiple AI models. Includes **real-time streaming**, plus **save/load** for custom personas. Supports **Ollama**, **OpenAI**, **Anthropic (Claude)**, **Google (Gemini)**, **xAI (Grok)**, and **DeepSeek**.
 
-**Version 1.3** - Latest features include conversation management and enhanced theming.
+**Version 1.4** - Latest features include memory and context management for handling long conversations.
 
 ## Why this exists (product rationale)
 
@@ -25,6 +25,12 @@ Design goal: **increase user satisfaction and usability while reducing risk** vi
 - **Streaming responses** (real-time chat generation)
 - **Avatar customization** (visual-only)
 - **Save/Load** custom personas
+- **Memory and Context Management**:
+  - Automatic token limit monitoring
+  - Intelligent context compression strategies
+  - Configurable context window sizes
+  - Real-time context usage indicators
+  - Multiple compression strategies (truncate oldest, summarize, sliding window)
 - **Conversation Management**:
   - Save and load conversations
   - Conversation history with search and delete
@@ -102,6 +108,35 @@ This data is invaluable for troubleshooting issues and optimizing performance.
 - Automatic fallback to working providers
 - Performance degradation alerts
 - Memory and resource usage tracking
+
+## Memory and Context Management
+
+The app includes intelligent memory management to handle long conversations and prevent token limit issues:
+
+### Context Settings
+Configure memory management in the "Context Settings" expander:
+- **Max Context Tokens**: Maximum tokens to keep in context window (1000-32000)
+- **Compression Threshold**: When to start compressing context (50-95%)
+- **Context Strategy**: How to manage context when approaching limits
+- **Summary Length**: Length of conversation summaries (50-500 tokens)
+
+### Context Strategies
+- **Truncate Oldest**: Remove oldest messages to stay within token limits
+- **Summarize Oldest**: Summarize older conversation parts to preserve key information
+- **Keep Recent**: Prioritize recent messages over older ones
+- **Sliding Window**: Use a sliding window approach for optimal context retention
+
+### Context Usage Monitoring
+- Real-time token usage indicator shows current context utilization
+- Color-coded warnings when approaching limits (🟢 safe, 🟡 warning, 🔴 critical)
+- Automatic context optimization prevents token limit errors
+- Instrumentation logs all context management operations
+
+### Benefits
+- **Prevents Token Errors**: Automatic context management avoids API token limit failures
+- **Maintains Conversation Quality**: Intelligent strategies preserve important context
+- **Improves Performance**: Optimized context reduces processing time and costs
+- **Transparent Operation**: Real-time monitoring shows exactly what's happening
 ## Troubleshooting
 
 ### Ollama 500 Internal Server Error

@@ -16,11 +16,12 @@ from instrumentation import (
     instrumentation, log_chat_request, log_chat_response, log_provider_health_check,
     create_debug_panel, export_diagnostics
 )
+from memory_manager import context_manager, MemoryConfig, ContextStrategy
 
 load_dotenv()
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "llama3.2")
-DEFAULT_VERSION = os.getenv("APP_VERSION", "Persona Creator v1.3")
+DEFAULT_VERSION = os.getenv("APP_VERSION", "Persona Creator v1.4")
 
 # Initialize conversation manager
 conversation_manager = ConversationManager()
@@ -88,6 +89,10 @@ def init_state():
         st.session_state.theme = "light"
     if "use_class_theme" not in st.session_state:
         st.session_state.use_class_theme = True
+    if "memory_config" not in st.session_state:
+        st.session_state.memory_config = MemoryConfig()
+    if "context_strategy" not in st.session_state:
+        st.session_state.context_strategy = ContextStrategy.SUMMARIZE_OLDEST
 
 # Initialize state first
 init_state()
@@ -308,6 +313,65 @@ with left:
 
     with st.expander("📝 Generated system prompt"):
         st.code(system_prompt, language="text")
+
+    # Memory and Context Management
+    st.markdown("### 🧠 Memory Management")
+    with st.expander("⚙️ Context Settings", expanded=False):
+        col_mem1, col_mem2 = st.columns(2)
+
+        with col_mem1:
+            max_tokens = st.slider(
+                "Max Context Tokens",
+                min_value=1000,
+                max_value=32000,
+                value=st.session_state.memory_config.max_context_tokens,
+                step=1000,
+                help="Maximum tokens to keep in context window"
+            )
+            st.session_state.memory_config.max_context_tokens = max_tokens
+
+            compression_threshold = st.slider(
+                "Compression Threshold (%)",
+                min_value=50,
+                max_value=95,
+                value=int((st.session_state.memory_config.summarize_threshold / st.session_state.memory_config.max_context_tokens) * 100),
+                step=5,
+                help="When to start compressing context"
+            )
+            st.session_state.memory_config.summarize_threshold = int((compression_threshold / 100.0) * st.session_state.memory_config.max_context_tokens)
+
+        with col_mem2:
+            context_strategy = st.selectbox(
+                "Context Strategy",
+                options=[strategy.value for strategy in ContextStrategy],
+                index=list(ContextStrategy).index(st.session_state.context_strategy),
+                help="How to manage context when approaching token limits"
+            )
+            st.session_state.context_strategy = ContextStrategy(context_strategy)
+
+            summary_length = st.slider(
+                "Summary Length (tokens)",
+                min_value=50,
+                max_value=500,
+                value=st.session_state.memory_config.summary_length,
+                step=25,
+                help="Length of conversation summaries"
+            )
+            st.session_state.memory_config.summary_length = summary_length
+
+        # Context usage indicator
+        if st.session_state.msgs:
+            current_tokens = context_manager.estimate_tokens(st.session_state.msgs)
+            usage_percent = (current_tokens / st.session_state.memory_config.max_context_tokens) * 100
+
+            if usage_percent > 80:
+                color = "🔴"
+            elif usage_percent > 60:
+                color = "🟡"
+            else:
+                color = "🟢"
+
+            st.caption(f"{color} Context Usage: {current_tokens}/{st.session_state.memory_config.max_context_tokens} tokens ({usage_percent:.1f}%)")
 
     if st.button("New Chat"):
         # Save current conversation if it has messages
@@ -669,6 +733,24 @@ with right:
         st.session_state.current_conversation.add_message("user", user_text, "👤")
         st.chat_message("user", avatar="👤").write(user_text)
 
+        # Apply context management before sending to AI
+        managed_messages = context_manager.manage_context(
+            st.session_state.msgs,
+            st.session_state.memory_config,
+            st.session_state.context_strategy,
+            selected_provider_name
+        )
+
+        # Log context management if messages were modified
+        if len(managed_messages) != len(st.session_state.msgs):
+            instrumentation.log_operation(
+                "context_management",
+                True,
+                original_count=len(st.session_state.msgs),
+                managed_count=len(managed_messages),
+                strategy=st.session_state.context_strategy.value
+            )
+
         try:
             if streaming_enabled:
                 # Simplified streaming response using standard Streamlit chat
@@ -681,7 +763,7 @@ with right:
                         for chunk in selected_provider.chat_stream(
                             model=selected_model,
                             system_prompt=system_prompt,
-                            messages=st.session_state.msgs
+                            messages=managed_messages
                         ):
                             accumulated_content += chunk
                             message_placeholder.write(accumulated_content)
@@ -703,7 +785,7 @@ with right:
                     reply = selected_provider.chat(
                         model=selected_model,
                         system_prompt=system_prompt,
-                        messages=st.session_state.msgs
+                        messages=managed_messages
                     )
                     duration = time.time() - start_time
                     log_chat_response(selected_provider_name, selected_model, True,
